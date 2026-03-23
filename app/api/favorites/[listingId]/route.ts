@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import getCurrentUser from "@/app/actions/getCurrentUser";
-import { Prisma } from "@prisma/client";
+import prisma from "@/app/libs/prismadb";
 
 interface IParams {
     listingId?: string;
@@ -9,7 +9,7 @@ interface IParams {
 
 export async function POST(
     request: Request,
-    { params }: { params: IParams }
+    { params }: { params: Promise<IParams> }
 ) {
     const currentUser = await getCurrentUser();
 
@@ -17,7 +17,7 @@ export async function POST(
         return NextResponse.error();
     }
 
-    const { listingId } = params;
+    const { listingId } = await params;
 
     if (!listingId || typeof listingId !== "string") {
         throw new Error("Invalid ID");
@@ -25,6 +25,54 @@ export async function POST(
 
     let favoriteIds = [...(currentUser.favoriteIds || [])];
 
-    if (favoriteIds.includes(listingId)) {
-        favoriteIds = favoriteIds.filter((id) => id !== listingId);
-    })
+    if (!favoriteIds.includes(listingId)) {
+        favoriteIds.push(listingId);
+    }
+
+    const user = await prisma?.user.update({
+        where: {
+            id: currentUser.id,
+        },
+        data: {
+            favoriteIds: {
+                set: favoriteIds,
+            },
+        },
+    });
+
+    return NextResponse.json(user);
+}
+
+export async function DELETE(
+    request: Request,
+    { params }: { params: Promise<IParams> }
+) {
+    const currentUser = await getCurrentUser();
+
+    if (!currentUser) {
+        return NextResponse.error();
+    }
+
+    const { listingId } = await params;
+
+    if (!listingId || typeof listingId !== "string") {
+        throw new Error("Invalid ID");
+    }
+
+    let favoriteIds = [...(currentUser.favoriteIds || [])];
+
+    favoriteIds = favoriteIds.filter((id) => id !== listingId);
+
+    const user = await prisma?.user.update({
+        where: {
+            id: currentUser.id,
+        },
+        data: {
+            favoriteIds: {
+                set: favoriteIds,
+            },
+        },
+    });
+
+    return NextResponse.json(user);
+}
